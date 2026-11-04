@@ -124,6 +124,21 @@
   .btn.p{background:linear-gradient(135deg,#ff6472,#ff3d57);border-color:transparent;font-weight:600;color:#fff}
   .note{color:var(--faint);font-size:12px;margin-top:12px}
   .err{color:var(--accent)}
+  /* demo panel */
+  .demo{margin-bottom:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#0c0e13}
+  .dhdr{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .dhdr b{color:var(--txt);font-weight:600}
+  .dhdr .ok{color:var(--accent2);font-family:var(--mono);font-size:11.5px;margin-left:auto;display:flex;align-items:center;gap:6px}
+  .dbody{min-height:64px}
+  .dstate{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:26px 18px;text-align:center;color:var(--muted);font-size:13.5px}
+  .dstate .spin{margin:0}
+  .dstate span{color:var(--faint);font-size:12px;max-width:380px}
+  .dwrap{position:relative;width:100%;aspect-ratio:16/10;background:#000}
+  .dwrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+  .drow{display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .drow .ok{color:var(--accent2);font-family:var(--mono);font-size:11.5px;display:flex;align-items:center;gap:6px}
+  .btn.sm{padding:7px 11px;font-size:12.5px}
+  code{background:var(--card2);padding:2px 6px;border-radius:5px;font-family:var(--mono);font-size:12px}
   @media(max-width:560px){.wrap{padding:0 14px}.search{max-width:none}.ghlink span{display:none}}
 </style>
 </head>
@@ -269,9 +284,42 @@ new IntersectionObserver(e=>{if(e[0].isIntersecting&&rendered<VIEW.length)more()
 
 /* modal */
 const scrim=$("#scrim"), modal=$("#modal");
-const close=()=>scrim.classList.remove("open");
+let demoAbort=null, curGame=null;
+const close=()=>{scrim.classList.remove("open");if(demoAbort)demoAbort.abort();modal.innerHTML="";};
+window.closeModal=close;
 scrim.onclick=e=>{if(e.target===scrim)close();};
 document.onkeydown=e=>{if(e.key==="Escape")close();};
+
+function demoShell(){return `<div class="dhdr"><b>Demo</b><span style="color:var(--faint)">playable preview</span></div><div class="dbody" id="dbody"></div>`;}
+function dstate(html){const b=$("#dbody");if(b)b.innerHTML=`<div class="dstate">${html}</div>`;}
+
+async function loadDemo(g,mode){
+  const b=$("#dbody"); if(!b) return;
+  dstate(`<div class="spin"></div>${mode==="full"?"Searching all share versions…":"Checking for a playable demo…"}`);
+  let res;
+  try{
+    const r=await fetch(`launch?team=${encodeURIComponent(g.teamSlug)}&game=${encodeURIComponent(g.slug)}&device=desktop&mode=${mode}${mode==="full"?"&fresh=1":""}`,{signal:demoAbort.signal});
+    const ct=r.headers.get("content-type")||"";
+    if(!r.ok||!ct.includes("json")) throw new Error("nobackend");
+    res=await r.json();
+  }catch(e){
+    if(e.name==="AbortError") return;
+    return dstate(`Demos need the local launcher.<br><span>Run <code>python server.py</code> in the site folder and open <code>http://localhost:8000</code>. The hosted GitHub Pages site can browse only — it can't reach Engine's login-gated launch endpoint.</span>`);
+  }
+  if(res.available&&res.url){
+    b.innerHTML=`<div class="dwrap"><iframe src="${res.url}" allow="autoplay; fullscreen; clipboard-write" allowfullscreen referrerpolicy="no-referrer"></iframe></div>
+      <div class="drow"><span class="ok"><span class="live"></span>live demo · v${esc(res.combo||"")}</span>
+        <span style="flex:1"></span>
+        <button class="btn sm" id="dfresh">↻ Fresh session</button>
+        <a class="btn sm" href="${res.url}" target="_blank" rel="noopener">Open in tab ↗</a></div>`;
+    $("#dfresh").onclick=()=>loadDemo(g,"full");
+  }else if(res.canSearch){
+    dstate(`No demo on the common version.<br><span>${esc(res.reason||"")}</span><button class="btn" id="dmore">Search harder (slower) ↻</button>`);
+    $("#dmore").onclick=()=>loadDemo(g,"full");
+  }else{
+    dstate(`No public demo for this game.<br><span>${esc(res.reason||"")}</span>`);
+  }
+}
 
 function spark(series,key){
   if(!series||series.length<2)return"";
@@ -290,8 +338,9 @@ function delta(cur,prev,invert){
 
 async function open(g){
   scrim.classList.add("open");
+  if(demoAbort)demoAbort.abort(); demoAbort=new AbortController(); curGame=g;
   const cover=IMG(g.img), hero=IMG(g.back)||cover;
-  modal.innerHTML=`<button class="x" onclick="document.getElementById('scrim').classList.remove('open')">×</button>
+  modal.innerHTML=`<button class="x" onclick="closeModal()">×</button>
     <div class="hero">${hero?`<img src="${hero}" onload="this.classList.add('on')" alt="">`:""}</div>
     <div class="mhead">${cover?`<img class="cover" src="${cover}" alt="">`:`<div class="cover"></div>`}
       <div class="mtitle"><h2>${esc(g.name)}</h2>
@@ -334,7 +383,8 @@ async function open(g){
       <a class="btn" href="${API}/api/insights/games/${g.teamSlug}/${g.slug}" target="_blank" rel="noopener">Raw JSON ↗</a>
       <a class="btn" href="${cover||'#'}" target="_blank" rel="noopener">Game art ↗</a>
     </div>`;
-  $("#mb").innerHTML=body+foot;
+  $("#mb").innerHTML=`<div class="demo">${demoShell()}</div>`+body+foot;
+  loadDemo(g,"fast");
 }
 
 /* controls */
