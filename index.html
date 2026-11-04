@@ -164,6 +164,13 @@
         <button data-s="rank">Rank</button>
         <button data-s="name">A–Z</button>
       </div>
+      <select id="range">
+        <option value="1d">Today</option>
+        <option value="3d">Last 3 days</option>
+        <option value="7d">Last 7 days</option>
+        <option value="30d">Last 30 days</option>
+        <option value="all">All time</option>
+      </select>
       <select id="prov"><option value="">All providers</option></select>
       <select id="act">
         <option value="10">Active · 10+ players</option>
@@ -189,8 +196,10 @@
 <script>
 const API="https://studio.engine.io";
 const IMG=id=>id?`${API}/api/asset/image/${id}`:null;
-const CK="engine_rank_v3", TTL=6*60*60*1000;
-let ALL=[], VIEW=[], rendered=0, SORT="players", MINP=10;
+const TTL=6*60*60*1000;
+const ckFor=rng=>"engine_rank_v4_"+rng;
+const RLABEL={"1d":"today","3d":"last 3 days","7d":"last 7 days","30d":"last 30 days","all":"all time"};
+let ALL=[], VIEW=[], rendered=0, SORT="players", MINP=10, RANGE="1d";
 const PAGE=60;
 const $=s=>document.querySelector(s);
 const grid=$("#grid"), statusEl=$("#status"), emptyEl=$("#empty");
@@ -204,10 +213,12 @@ function usd(d){ if(d==null)return"—"; const a=Math.abs(d);
   return"$"+d.toFixed(0); }
 function cnt(n){ if(n==null)return"—"; if(n>=1e6)return(n/1e6).toFixed(1)+"M"; if(n>=1e3)return(n/1e3).toFixed(1)+"K"; return ""+n; }
 
-async function load(){
+async function load(rng){
+  const CK=ckFor(rng);
   try{ const c=JSON.parse(localStorage.getItem(CK)||"null");
     if(c&&Date.now()-c.t<TTL&&Array.isArray(c.g)&&c.g.length) return c.g; }catch(e){}
-  const first=await (await fetch(`${API}/api/insights/rankings?category=turnover&page=1`)).json();
+  const qp=`category=turnover&range=${rng}`;
+  const first=await (await fetch(`${API}/api/insights/rankings?${qp}&page=1`)).json();
   const total=first.total||first.games.length, pages=Math.ceil(total/100);
   let got=[...first.games];
   $("#prog").style.width=(100/pages)+"%";
@@ -215,10 +226,10 @@ async function load(){
   const B=10; let done=1;
   for(let i=0;i<todo.length;i+=B){
     const batch=todo.slice(i,i+B);
-    const res=await Promise.all(batch.map(p=>fetch(`${API}/api/insights/rankings?category=turnover&page=${p}`).then(r=>r.json()).catch(()=>({games:[]}))));
+    const res=await Promise.all(batch.map(p=>fetch(`${API}/api/insights/rankings?${qp}&page=${p}`).then(r=>r.json()).catch(()=>({games:[]}))));
     res.forEach(r=>got.push(...(r.games||[])));
     done+=batch.length; $("#prog").style.width=Math.min(100,done/pages*100)+"%";
-    statusEl.firstChild && (statusEl.childNodes[1].textContent=`Loading live rankings… ${got.length.toLocaleString()} / ${total.toLocaleString()}`);
+    statusEl.childNodes[1] && (statusEl.childNodes[1].textContent=`Loading ${RLABEL[rng]} rankings… ${got.length.toLocaleString()} / ${total.toLocaleString()}`);
   }
   const g=got.map(x=>({
     rank:x.rank, prev:x.previousRank,
@@ -235,8 +246,17 @@ function buildProviders(){
   const m=new Map();
   for(const g of ALL) m.set(g.teamSlug,{name:g.team,slug:g.teamSlug,n:(m.get(g.teamSlug)?.n||0)+1});
   const list=[...m.values()].sort((a,b)=>b.n-a.n||a.name.localeCompare(b.name));
-  const sel=$("#prov");
+  const sel=$("#prov"), keep=sel.value;
+  sel.innerHTML='<option value="">All providers</option>';
   for(const p of list){ const o=document.createElement("option"); o.value=p.slug; o.textContent=`${p.name} (${p.n})`; sel.appendChild(o); }
+  if([...sel.options].some(o=>o.value===keep)) sel.value=keep;
+}
+
+async function reload(){
+  statusEl.style.display="block"; grid.innerHTML=""; $("#prog").style.width="0";
+  statusEl.innerHTML=`<div class="spin"></div>Loading ${RLABEL[RANGE]} rankings…<div class="bar"><i id="prog"></i></div>`;
+  try{ ALL=await load(RANGE); statusEl.style.display="none"; buildProviders(); apply(); }
+  catch(e){ statusEl.innerHTML=`<p class="err">Couldn't load data: ${esc(e.message)}</p>`; }
 }
 
 function apply(){
@@ -250,7 +270,7 @@ function apply(){
     bets:(a,b)=>b.bets-a.bets, rank:(a,b)=>a.rank-b.rank, name:(a,b)=>a.name.localeCompare(b.name) };
   v.sort(by[SORT]);
   VIEW=v;
-  $("#count").innerHTML=`<b>${v.length.toLocaleString()}</b> slots`;
+  $("#count").innerHTML=`<b>${v.length.toLocaleString()}</b> slots · ${RLABEL[RANGE]}`;
   grid.innerHTML=""; rendered=0;
   emptyEl.style.display=v.length?"none":"block";
   more();
@@ -347,7 +367,7 @@ async function open(g){
         <div class="prov">${g.teamImg?`<img src="${IMG(g.teamImg)}">`:""}${esc(g.team)}</div></div></div>
     <div class="mbody" id="mb"><div class="status" style="padding:30px"><div class="spin"></div>Loading stats…</div></div>`;
   let d=null;
-  try{ const r=await fetch(`${API}/api/insights/games/${encodeURIComponent(g.teamSlug)}/${encodeURIComponent(g.slug)}`); if(r.ok)d=await r.json(); }catch(e){}
+  try{ const r=await fetch(`${API}/api/insights/games/${encodeURIComponent(g.teamSlug)}/${encodeURIComponent(g.slug)}?range=${RANGE}`); if(r.ok)d=await r.json(); }catch(e){}
   const t=d?.totals||{}, pv=d?.previous||{}, f=d?.facts||{}, prof=d?.profile||{};
   const vol=sd=>sd==null?null:(sd<15?"Low":sd<35?"Medium":sd<70?"High":"Very high");
   const factChips = d&&(f.rtp||f.maxWin||f.standardDeviation||f.released)?`
@@ -391,11 +411,12 @@ async function open(g){
 let qt; $("#q").oninput=()=>{clearTimeout(qt);qt=setTimeout(apply,150);};
 $("#prov").onchange=apply;
 $("#act").onchange=e=>{MINP=+e.target.value;apply();};
+$("#range").onchange=e=>{RANGE=e.target.value;reload();};
 $("#sortSeg").onclick=e=>{const b=e.target.closest("button");if(!b)return;[...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));SORT=b.dataset.s;apply();};
-$("#src").href=`${API}/api/insights/rankings?category=turnover&page=1`;
+$("#src").href=`${API}/api/insights/rankings?category=turnover&range=1d&page=1`;
 
 (async()=>{
-  try{ ALL=await load(); statusEl.style.display="none"; buildProviders(); apply(); }
+  try{ ALL=await load(RANGE); statusEl.style.display="none"; buildProviders(); apply(); }
   catch(e){ statusEl.innerHTML=`<p class="err">Couldn't load data: ${esc(e.message)}</p><p style="color:var(--muted)">Engine's API must be reachable from your browser — try reloading.</p>`; }
 })();
 </script>

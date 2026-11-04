@@ -21,7 +21,7 @@ A game is `{teamSlug}/{gameSlug}` — e.g. `squiffy-slots/toxic-mess`.
 | Endpoint | Returns |
 |----------|---------|
 | `GET /api/insights/directory` | **The master list.** `{games:[{game:{name,slug,image,blurhash}, team:{name,slug,image}, rank}], publishers:[...]}` — ~6,900 games, ~1,890 providers, in one ~2 MB response. **This is how you enumerate every slot.** |
-| `GET /api/insights/rankings?category=<c>&page=<n>` | Leaderboard, 100/page (`pageSize` fixed at 100). Adds `turnoverUsd, bets, players, averageBetUsd, trend[], previousRank`. `total` = game count. Categories: `turnover, bets, players, average-bet, climbing`. |
+| `GET /api/insights/rankings?category=<c>&page=<n>&range=<r>` | Leaderboard, 100/page (`pageSize` fixed at 100). Adds `turnoverUsd, bets, players, averageBetUsd, trend[], previousRank`. `total` = game count. Categories: `turnover, bets, players, average-bet, climbing`. **`range`** window (default `30d`): valid values `1d, 3d, 7d, 30d, 90d, all` — `1d` ≈ today/last-24h (players/turnover/bets all scale to that window). The detail endpoint takes the same `range` (and returns hourly `series` for `1d`). |
 | `GET /api/insights/leaderboards` | Top-N per category in one call. |
 | `GET /api/insights/games/{team}/{game}` | **Per-game detail:** 30-day `series[]`, `totals`, `previous`, `ranks[]` per category, `from/to`. |
 | `GET /api/insights/publishers/{team}` | A publisher's games. |
