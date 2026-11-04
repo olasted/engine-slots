@@ -58,13 +58,13 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:transform .14s cubic-bezier(.2,.7,.3,1),border-color .14s,box-shadow .14s;will-change:transform}
   .card:hover{transform:translateY(-4px);border-color:var(--line2);box-shadow:0 12px 30px rgba(0,0,0,.5)}
   .art{position:relative;aspect-ratio:1/1;background:linear-gradient(135deg,#14161c,#1b1e27)}
-  .art img{width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s}
+  .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;opacity:0;transition:opacity .4s;z-index:1}
   .art img.on{opacity:1}
-  .art .skel{position:absolute;inset:0;background:linear-gradient(100deg,#15171d 30%,#1d212b 50%,#15171d 70%);background-size:200% 100%;animation:sh 1.3s infinite}
+  .art .skel{position:absolute;inset:0;z-index:0;background:linear-gradient(100deg,#15171d 30%,#1d212b 50%,#15171d 70%);background-size:200% 100%;animation:sh 1.3s infinite}
   @keyframes sh{to{background-position:-200% 0}}
-  .rk{position:absolute;top:9px;left:9px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 7px;border-radius:7px;background:rgba(7,8,11,.72);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.08);color:#cfd3db}
+  .rk{z-index:2;position:absolute;top:9px;left:9px;font-family:var(--mono);font-size:11px;font-weight:600;padding:3px 7px;border-radius:7px;background:rgba(7,8,11,.72);backdrop-filter:blur(5px);border:1px solid rgba(255,255,255,.08);color:#cfd3db}
   .rk.g{background:linear-gradient(135deg,#ffd87a,#ffad33);color:#2a1a00;border-color:transparent}
-  .plr{position:absolute;bottom:9px;left:9px;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:999px;background:rgba(7,8,11,.74);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.07);color:#eef0f3}
+  .plr{z-index:2;position:absolute;bottom:9px;left:9px;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:999px;background:rgba(7,8,11,.74);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.07);color:#eef0f3}
   .live{width:6px;height:6px;border-radius:50%;background:var(--accent2);box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.5)}70%{box-shadow:0 0 0 6px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
   .cb{padding:11px 12px 13px}
@@ -259,7 +259,7 @@ function more(){
         <div class="mt"><span>players <b>${cnt(g.players)}</b></span><span>turnover <b>${usd(g.turnover)}</b></span></div>
       </div>`;
     c.onclick=()=>open(g);
-    const im=c.querySelector(".art img"); if(im){im.onload=()=>im.classList.add("on");io.observe(im);}
+    const im=c.querySelector(".art img"); if(im){im.onload=()=>{im.classList.add("on");const sk=im.parentNode.querySelector(".skel");if(sk)sk.style.display="none";};im.onerror=()=>io.unobserve(im);io.observe(im);}
     const pi=c.querySelector(".pv img"); if(pi)io.observe(pi);
     f.appendChild(c);
   }
